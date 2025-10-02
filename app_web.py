@@ -99,7 +99,6 @@ if 'df_resultado' not in st.session_state:
 uploaded_file = st.file_uploader("Selecione a planilha Excel (.xlsx)", type="xlsx")
 
 if uploaded_file is not None:
-    # A estrutura try...except começa aqui para capturar qualquer erro durante o carregamento.
     try:
         df = pd.read_excel(uploaded_file)
         df.columns = [str(col).upper().strip() for col in df.columns]
@@ -116,7 +115,6 @@ if uploaded_file is not None:
         st.session_state.df_original = df_corrigido
         st.session_state.df_resultado = None
 
-    # Este bloco 'except' é crucial e corrige o SyntaxError.
     except Exception as e:
         st.error(f"Erro ao ler ou validar o arquivo: {e}")
         st.session_state.df_original = None
