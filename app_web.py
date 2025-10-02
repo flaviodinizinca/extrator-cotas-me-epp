@@ -148,7 +148,10 @@ if st.session_state.df_original is not None:
         else:
             with st.spinner('Processando...'):
                 try:
-                    df_para_processar = st.session_state.df_original.drop(columns=['SELECIONAR COTA'])
+                    # CORREÇÃO APLICADA AQUI:
+                    # O DataFrame a ser processado agora é o 'df_editado', 
+                    # que contém as seleções do usuário.
+                    df_para_processar = st.session_state.df_editado.drop(columns=['SELECIONAR COTA'])
                     original_had_qtd_total = "QUANTIDADE TOTAL" in df_para_processar.columns
                     
                     resultado = processar_df_orcamento(
@@ -178,5 +181,5 @@ if st.session_state.df_resultado is not None:
         label="Download do Resultado em Excel",
         data=excel_bytes,
         file_name="resultado_cotas_processado.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetsheet"
     )
