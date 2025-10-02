@@ -18,8 +18,8 @@ st.set_page_config(
 )
 
 # --- Funções Auxiliares ---
-def formatar_moeda_br(valor):
-    """Formata um número para o padrão de moeda brasileiro (R$ #.###,####)."""
+def formatar_moeda_br_string(valor):
+    """Formata um número para uma string no padrão de moeda brasileiro (R$ #.###,####)."""
     if pd.isna(valor) or not isinstance(valor, (int, float)):
         return "R$ 0,0000"
     return f"R$ {valor:,.4f}".replace(",", "X").replace(".", ",").replace("X", ".")
@@ -53,7 +53,7 @@ def validar_e_calcular_totais(df: pd.DataFrame) -> tuple[pd.DataFrame, list[str]
                         item_num = df.at[index, COL_ITEM] if COL_ITEM in df.columns else index + 1
                         correcoes_msgs.append(
                             f"Item {item_num}, Coluna '{col_total_correspondente}': Valor informado "
-                            f"({valor_original}) foi corrigido para {formatar_moeda_br(valor_calculado)}."
+                            f"({valor_original}) foi corrigido para {formatar_moeda_br_string(valor_calculado)}."
                         )
         
         df[col_total_correspondente] = total_correto
@@ -74,14 +74,13 @@ def validar_e_calcular_totais(df: pd.DataFrame) -> tuple[pd.DataFrame, list[str]
                         item_num = df.at[index, COL_ITEM] if COL_ITEM in df.columns else index + 1
                         correcoes_msgs.append(
                             f"Item {item_num}, Coluna '{COL_VALOR_TOTAL}': Valor informado "
-                            f"({valor_original}) foi corrigido para {formatar_moeda_br(valor_calculado)}."
+                            f"({valor_original}) foi corrigido para {formatar_moeda_br_string(valor_calculado)}."
                         )
         
         df[COL_QTD_TOTAL] = total_qtd_correto
         df[COL_VALOR_TOTAL] = total_geral_correto
 
     return df, correcoes_msgs
-
 
 # --- Interface da Aplicação ---
 st.title("Calculadora de Cotas para ME/EPP")
@@ -91,6 +90,8 @@ if 'df_original' not in st.session_state:
     st.session_state.df_original = None
 if 'df_resultado' not in st.session_state:
     st.session_state.df_resultado = None
+if 'edited_df' not in st.session_state:
+    st.session_state.edited_df = None
 
 uploaded_file = st.file_uploader("Selecione a planilha Excel (.xlsx)", type="xlsx")
 
@@ -109,39 +110,41 @@ if uploaded_file is not None:
         df_corrigido.insert(0, 'SELECIONAR COTA', False)
         
         st.session_state.df_original = df_corrigido
+        st.session_state.edited_df = df_corrigido.copy() # Cria cópia para edição
         st.session_state.df_resultado = None
 
     except Exception as e:
         st.error(f"Erro ao ler ou validar o arquivo: {e}")
         st.session_state.df_original = None
 
-if st.session_state.df_original is not None:
+if st.session_state.edited_df is not None:
     st.subheader("Planilha Original")
     st.markdown("Marque a caixa de seleção `SELECIONAR COTA` nas linhas que devem ser consideradas para a análise de cotas.")
     
-    # Cria uma cópia para exibição com a formatação correta de moeda
-    df_para_editar = st.session_state.df_original.copy()
-    monetary_cols = [col for col in df_para_editar.columns if 'VALOR' in str(col).upper()]
-    for col in monetary_cols:
-        df_para_editar[col] = df_para_editar[col].apply(formatar_moeda_br)
+    # Configuração de colunas para formatação de moeda no st.data_editor
+    column_config = {
+        col: st.column_config.NumberColumn(format="R$ %.4f")
+        for col in st.session_state.edited_df.columns
+        if 'VALOR' in str(col).upper()
+    }
     
-    df_editado_ui = st.data_editor(
-        df_para_editar,
+    edited_df = st.data_editor(
+        st.session_state.edited_df,
         key='editor_dados',
         use_container_width=True,
-        hide_index=True
+        hide_index=True,
+        column_config=column_config
     )
     
     if st.button("Processar Cotas Marcadas"):
-        # As marcações são obtidas da versão da UI
-        indices_marcados = set(df_editado_ui[df_editado_ui['SELECIONAR COTA'] == True].index)
+        indices_marcados = set(edited_df[edited_df['SELECIONAR COTA'] == True].index)
 
         if not indices_marcados:
             st.warning("Nenhuma linha foi selecionada para processamento de cota.")
         else:
             with st.spinner('Processando...'):
                 try:
-                    # O processamento é feito no DataFrame original (numérico)
+                    # Usa o DataFrame original (numérico) para o processamento
                     df_para_processar = st.session_state.df_original.drop(columns=['SELECIONAR COTA'])
                     original_had_qtd_total = "QUANTIDADE TOTAL" in df_para_processar.columns
                     
@@ -159,11 +162,11 @@ if st.session_state.df_original is not None:
 if st.session_state.df_resultado is not None:
     st.subheader("Resultado Processado")
 
-    # Cria uma cópia formatada para exibição do resultado
+    # Cria uma cópia formatada para exibição do resultado final
     df_resultado_display = st.session_state.df_resultado.copy()
     monetary_cols_resultado = [col for col in df_resultado_display.columns if 'VALOR' in str(col).upper()]
     for col in monetary_cols_resultado:
-        df_resultado_display[col] = df_resultado_display[col].apply(formatar_moeda_br)
+        df_resultado_display[col] = df_resultado_display[col].apply(formatar_moeda_br_string)
     
     st.dataframe(df_resultado_display, use_container_width=True, hide_index=True)
     
