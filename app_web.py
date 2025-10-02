@@ -86,14 +86,14 @@ def validar_e_calcular_totais(df: pd.DataFrame) -> tuple[pd.DataFrame, list[str]
 st.title("Calculadora de Cotas para ME/EPP")
 st.markdown("Faça o upload da sua planilha de orçamento para aplicar as regras de cotas.")
 
-if 'df_original_numerico' not in st.session_state:
-    st.session_state.df_original_numerico = None
+if 'df_original' not in st.session_state:
+    st.session_state.df_original = None
 if 'df_resultado' not in st.session_state:
     st.session_state.df_resultado = None
 
-uploaded_file = st.file_uploader("Selecione a planilha Excel (.xlsx)", type="xlsx")
+uploaded_file = st.file_uploader("Selecione a planilha Excel (.xlsx)", type="xlsx", key="file_uploader")
 
-if uploaded_file is not None:
+if uploaded_file:
     try:
         df = pd.read_excel(uploaded_file)
         df.columns = [str(col).upper().strip() for col in df.columns]
@@ -107,40 +107,43 @@ if uploaded_file is not None:
 
         df_corrigido.insert(0, 'SELECIONAR COTA', False)
         
-        st.session_state.df_original_numerico = df_corrigido
+        st.session_state.df_original = df_corrigido
         st.session_state.df_resultado = None
 
     except Exception as e:
         st.error(f"Erro ao ler ou validar o arquivo: {e}")
-        st.session_state.df_original_numerico = None
+        st.session_state.df_original = None
 
-if st.session_state.df_original_numerico is not None:
+if st.session_state.df_original is not None:
     st.subheader("Planilha Original")
     st.markdown("Marque a caixa de seleção `SELECIONAR COTA` nas linhas que devem ser consideradas para a análise de cotas.")
     
-    # Cria uma cópia para exibição com a formatação correta de moeda
-    df_para_exibir = st.session_state.df_original_numerico.copy()
-    monetary_cols = [col for col in df_para_exibir.columns if 'VALOR' in str(col).upper()]
-    for col in monetary_cols:
-        df_para_exibir[col] = df_para_exibir[col].apply(formatar_moeda_br_string)
+    df_para_editar = st.session_state.df_original.copy()
+
+    # Configuração de colunas para formatação de moeda
+    column_config = {
+        col: st.column_config.NumberColumn(format="R$ %.4f")
+        for col in df_para_editar.columns if 'VALOR' in str(col).upper()
+    }
     
-    # O data_editor agora edita o DataFrame original numérico
-    df_editado = st.data_editor(
-        st.session_state.df_original_numerico,
-        key='editor_dados',
+    # Armazena o dataframe editado no estado da sessão
+    st.session_state.df_editado = st.data_editor(
+        df_para_editar,
         use_container_width=True,
         hide_index=True,
+        column_config=column_config,
+        key="data_editor"
     )
     
     if st.button("Processar Cotas Marcadas"):
-        indices_marcados = set(df_editado[df_editado['SELECIONAR COTA'] == True].index)
+        indices_marcados = set(st.session_state.df_editado[st.session_state.df_editado['SELECIONAR COTA'] == True].index)
 
         if not indices_marcados:
             st.warning("Nenhuma linha foi selecionada para processamento de cota.")
         else:
             with st.spinner('Processando...'):
                 try:
-                    df_para_processar = df_editado.drop(columns=['SELECIONAR COTA'])
+                    df_para_processar = st.session_state.df_original.drop(columns=['SELECIONAR COTA'])
                     original_had_qtd_total = "QUANTIDADE TOTAL" in df_para_processar.columns
                     
                     resultado = processar_df_orcamento(
@@ -157,7 +160,6 @@ if st.session_state.df_original_numerico is not None:
 if st.session_state.df_resultado is not None:
     st.subheader("Resultado Processado")
 
-    # Cria uma cópia formatada para exibição do resultado final
     df_resultado_display = st.session_state.df_resultado.copy()
     monetary_cols_resultado = [col for col in df_resultado_display.columns if 'VALOR' in str(col).upper()]
     for col in monetary_cols_resultado:
