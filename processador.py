@@ -1,4 +1,4 @@
-# ME-EPPgit/processador.py - CÓDIGO COMPLETO E CORRIGIDO
+# ME-EPPgit/processador.py - CÓDIGO FINAL E CORRIGIDO
 # -*- coding: utf-8 -*-
 import pandas as pd
 import numpy as np
@@ -85,15 +85,12 @@ def processar_df_orcamento(df: pd.DataFrame, original_had_qtd_total: bool, indic
     result_df = pd.DataFrame(processed_rows).reset_index(drop=True)
     
     # Recalcula as colunas de quantidade e valor para garantir consistência, com arredondamento
-    if cols_quantidades:
-        result_df[COL_QTD_TOTAL] = result_df[cols_quantidades].sum(axis=1, skipna=True)
-    
-    if COL_QTD_TOTAL in result_df.columns and COL_VALOR_UNITARIO in result_df.columns:
-        result_df[COL_VALOR_TOTAL] = (result_df[COL_QTD_TOTAL] * result_df[COL_VALOR_UNITARIO]).round(4)
+    result_df[COL_QTD_TOTAL] = result_df[cols_quantidades].sum(axis=1, skipna=True)
+    result_df[COL_VALOR_TOTAL] = (result_df[COL_QTD_TOTAL] * result_df[COL_VALOR_UNITARIO]).round(4)
     
     cols_valores = [c for c in df.columns if c.startswith(PREFIXO_VALOR) and c != COL_VALOR_TOTAL]
     for col_val, col_qtd in zip(cols_valores, cols_quantidades):
-        if col_val in result_df.columns and col_qtd in result_df.columns and COL_VALOR_UNITARIO in result_df.columns:
+        if col_val in result_df.columns and col_qtd in result_df.columns:
             result_df[col_val] = (result_df[col_qtd] * result_df[COL_VALOR_UNITARIO]).round(4)
             
     result_df[COL_ITEM] = np.arange(1, len(result_df) + 1)
