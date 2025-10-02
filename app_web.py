@@ -90,8 +90,6 @@ if 'df_original' not in st.session_state:
     st.session_state.df_original = None
 if 'df_resultado' not in st.session_state:
     st.session_state.df_resultado = None
-if 'edited_df' not in st.session_state:
-    st.session_state.edited_df = None
 
 uploaded_file = st.file_uploader("Selecione a planilha Excel (.xlsx)", type="xlsx")
 
@@ -110,41 +108,40 @@ if uploaded_file is not None:
         df_corrigido.insert(0, 'SELECIONAR COTA', False)
         
         st.session_state.df_original = df_corrigido
-        st.session_state.edited_df = df_corrigido.copy() # Cria cópia para edição
         st.session_state.df_resultado = None
 
     except Exception as e:
         st.error(f"Erro ao ler ou validar o arquivo: {e}")
         st.session_state.df_original = None
 
-if st.session_state.edited_df is not None:
+if st.session_state.df_original is not None:
     st.subheader("Planilha Original")
     st.markdown("Marque a caixa de seleção `SELECIONAR COTA` nas linhas que devem ser consideradas para a análise de cotas.")
     
-    # Configuração de colunas para formatação de moeda no st.data_editor
-    column_config = {
-        col: st.column_config.NumberColumn(format="R$ %.4f")
-        for col in st.session_state.edited_df.columns
-        if 'VALOR' in str(col).upper()
-    }
+    # Cria uma cópia para exibição com a formatação correta de moeda
+    df_para_editar = st.session_state.df_original.copy()
+    monetary_cols = [col for col in df_para_editar.columns if 'VALOR' in str(col).upper()]
+    for col in monetary_cols:
+        df_para_editar[col] = df_para_editar[col].apply(formatar_moeda_br_string)
     
-    edited_df = st.data_editor(
-        st.session_state.edited_df,
+    st.data_editor(
+        df_para_editar, # Exibe o DF com formatação de string
         key='editor_dados',
         use_container_width=True,
-        hide_index=True,
-        column_config=column_config
+        hide_index=True
     )
     
     if st.button("Processar Cotas Marcadas"):
-        indices_marcados = set(edited_df[edited_df['SELECIONAR COTA'] == True].index)
+        # Obtém as marcações do usuário a partir do widget `data_editor`
+        df_editado_ui = st.session_state.editor_dados
+        indices_marcados = set(df_editado_ui[df_editado_ui['SELECIONAR COTA'] == True].index)
 
         if not indices_marcados:
             st.warning("Nenhuma linha foi selecionada para processamento de cota.")
         else:
             with st.spinner('Processando...'):
                 try:
-                    # Usa o DataFrame original (numérico) para o processamento
+                    # Usa o DataFrame original (com números) para o processamento
                     df_para_processar = st.session_state.df_original.drop(columns=['SELECIONAR COTA'])
                     original_had_qtd_total = "QUANTIDADE TOTAL" in df_para_processar.columns
                     
@@ -170,6 +167,7 @@ if st.session_state.df_resultado is not None:
     
     st.dataframe(df_resultado_display, use_container_width=True, hide_index=True)
     
+    # Usa o DataFrame de resultado (com números) para gerar o Excel
     excel_bytes = to_excel(st.session_state.df_resultado)
     
     st.download_button(
