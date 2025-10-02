@@ -120,20 +120,24 @@ if st.session_state.df_original is not None:
     st.subheader("Planilha Original")
     st.markdown("Marque a caixa de seleção `SELECIONAR COTA` nas linhas que devem ser consideradas para a análise de cotas.")
     
-    df_para_editar = st.session_state.df_original.copy()
-
-    # Configuração de colunas para formatação de moeda
+    # Prepara o DataFrame para exibição, desabilitando a edição das células formatadas
+    df_para_exibir = st.session_state.df_original.copy()
+    disabled_cols = [col for col in df_para_exibir.columns if col != 'SELECIONAR COTA']
+    
+    # Configuração para formatar visualmente os valores monetários
     column_config = {
         col: st.column_config.NumberColumn(format="R$ %.4f")
-        for col in df_para_editar.columns if 'VALOR' in str(col).upper()
+        for col in df_para_exibir.columns if 'VALOR' in str(col).upper()
     }
-    
+
+    # Armazena o dataframe editado no estado da sessão
     st.session_state.df_editado = st.data_editor(
-        df_para_editar,
-        key="data_editor",
+        st.session_state.df_original,
+        disabled=disabled_cols,
         use_container_width=True,
         hide_index=True,
-        column_config=column_config
+        column_config=column_config,
+        key="data_editor"
     )
     
     if st.button("Processar Cotas Marcadas"):
