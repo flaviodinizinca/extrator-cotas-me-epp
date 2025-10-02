@@ -1,4 +1,4 @@
-# ME-EPPgit/app_web.py - CÓDIGO COMPLETO E CORRIGIDO
+# ME-EPPgit/app_web.py - CÓDIGO FINAL E CORRIGIDO
 # -*- coding: utf-8 -*-
 import streamlit as st
 import pandas as pd
@@ -22,7 +22,6 @@ def formatar_moeda_br(valor):
     """Formata um número para o padrão de moeda brasileiro (R$ #.###,####)."""
     if pd.isna(valor) or not isinstance(valor, (int, float)):
         return "R$ 0,0000"
-    # Formata com 4 casas decimais, usando '.' para milhar e ',' para decimal
     return f"R$ {valor:,.4f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
 def validar_e_calcular_totais(df: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
@@ -120,31 +119,29 @@ if st.session_state.df_original is not None:
     st.subheader("Planilha Original")
     st.markdown("Marque a caixa de seleção `SELECIONAR COTA` nas linhas que devem ser consideradas para a análise de cotas.")
     
-    # Cria uma cópia para exibição com formatação de moeda
-    df_display = st.session_state.df_original.copy()
-    monetary_cols = [col for col in df_display.columns if 'VALOR' in str(col).upper()]
+    # Cria uma cópia para exibição com a formatação correta de moeda
+    df_para_editar = st.session_state.df_original.copy()
+    monetary_cols = [col for col in df_para_editar.columns if 'VALOR' in str(col).upper()]
     for col in monetary_cols:
-        df_display[col] = df_display[col].apply(formatar_moeda_br)
-
-    # Edita o DataFrame original, mas exibe o formatado
-    df_editado = st.data_editor(
-        df_display, # Exibe o DF com formatação de string
+        df_para_editar[col] = df_para_editar[col].apply(formatar_moeda_br)
+    
+    df_editado_ui = st.data_editor(
+        df_para_editar,
         key='editor_dados',
         use_container_width=True,
         hide_index=True
     )
     
     if st.button("Processar Cotas Marcadas"):
-        # Pega os índices das linhas onde a caixa foi marcada
-        # IMPORTANTE: A verificação é feita no DataFrame exibido (df_editado), que é uma representação da UI
-        indices_marcados = set(df_editado[df_editado['SELECIONAR COTA'] == True].index)
+        # As marcações são obtidas da versão da UI
+        indices_marcados = set(df_editado_ui[df_editado_ui['SELECIONAR COTA'] == True].index)
 
         if not indices_marcados:
             st.warning("Nenhuma linha foi selecionada para processamento de cota.")
         else:
             with st.spinner('Processando...'):
                 try:
-                    # Usa o DataFrame original (numérico) para o processamento
+                    # O processamento é feito no DataFrame original (numérico)
                     df_para_processar = st.session_state.df_original.drop(columns=['SELECIONAR COTA'])
                     original_had_qtd_total = "QUANTIDADE TOTAL" in df_para_processar.columns
                     
