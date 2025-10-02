@@ -19,7 +19,7 @@ st.set_page_config(
 
 # --- Funções Auxiliares ---
 def formatar_moeda_br(valor):
-    """Formata um número para o padrão de moeda brasileiro (R$ #.###,##), tratando valores nulos."""
+    """Formata um número para o padrão de moeda brasileiro (R$ #.###,####), tratando valores nulos."""
     if pd.isna(valor) or not isinstance(valor, (int, float)):
         return "R$ 0,0000"
     return f"R$ {valor:,.4f}".replace(",", "X").replace(".", ",").replace("X", ".")
@@ -99,11 +99,11 @@ if 'df_resultado' not in st.session_state:
 uploaded_file = st.file_uploader("Selecione a planilha Excel (.xlsx)", type="xlsx")
 
 if uploaded_file is not None:
+    # A estrutura try...except começa aqui para capturar qualquer erro durante o carregamento.
     try:
         df = pd.read_excel(uploaded_file)
         df.columns = [str(col).upper().strip() for col in df.columns]
         
-        # **LÓGICA DE VALIDAÇÃO E CORREÇÃO INSERIDA AQUI**
         df_corrigido, correcoes = validar_e_calcular_totais(df.copy())
         
         if correcoes:
@@ -112,3 +112,71 @@ if uploaded_file is not None:
                 st.info(msg)
 
         df_corrigido.insert(0, 'SELECIONAR COTA', False)
+        
+        st.session_state.df_original = df_corrigido
+        st.session_state.df_resultado = None
+
+    # Este bloco 'except' é crucial e corrige o SyntaxError.
+    except Exception as e:
+        st.error(f"Erro ao ler ou validar o arquivo: {e}")
+        st.session_state.df_original = None
+
+if st.session_state.df_original is not None:
+    st.subheader("Planilha Original")
+    st.markdown("Marque a caixa de seleção `SELECIONAR COTA` nas linhas que devem ser consideradas para a análise de cotas.")
+    
+    monetary_cols = {
+        col: st.column_config.NumberColumn(format="R$ %.4f")
+        for col in st.session_state.df_original.columns
+        if 'VALOR' in col.upper()
+    }
+
+    df_editado = st.data_editor(
+        st.session_state.df_original,
+        key='editor_dados',
+        use_container_width=True,
+        column_config=monetary_cols,
+        hide_index=True
+    )
+    
+    if st.button("Processar Cotas Marcadas"):
+        indices_marcados = set(df_editado[df_editado['SELECIONAR COTA'] == True].index)
+
+        if not indices_marcados:
+            st.warning("Nenhuma linha foi selecionada para processamento de cota.")
+        else:
+            with st.spinner('Processando...'):
+                try:
+                    df_para_processar = df_editado.drop(columns=['SELECIONAR COTA'])
+                    original_had_qtd_total = "QUANTIDADE TOTAL" in df_para_processar.columns
+                    
+                    resultado = processar_df_orcamento(
+                        df_para_processar.copy(), 
+                        original_had_qtd_total, 
+                        indices_marcados
+                    )
+                    st.session_state.df_resultado = resultado
+                    st.success("Processamento concluído com sucesso!")
+
+                except Exception as e:
+                    st.error(f"Ocorreu um erro durante o processamento: {e}")
+
+if st.session_state.df_resultado is not None:
+    st.subheader("Resultado Processado")
+
+    monetary_cols_resultado = {
+        col: st.column_config.NumberColumn(format="R$ %.4f")
+        for col in st.session_state.df_resultado.columns
+        if 'VALOR' in col.upper()
+    }
+    
+    st.dataframe(st.session_state.df_resultado, use_container_width=True, column_config=monetary_cols_resultado, hide_index=True)
+    
+    excel_bytes = to_excel(st.session_state.df_resultado)
+    
+    st.download_button(
+        label="Download do Resultado em Excel",
+        data=excel_bytes,
+        file_name="resultado_cotas_processado.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
