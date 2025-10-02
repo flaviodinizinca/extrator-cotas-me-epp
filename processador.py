@@ -84,6 +84,7 @@ def processar_df_orcamento(df: pd.DataFrame, original_had_qtd_total: bool, indic
 
     result_df = pd.DataFrame(processed_rows)
     
+    # Recalcula as colunas de quantidade e valor para garantir consistência
     result_df[COL_QTD_TOTAL] = result_df[cols_quantidades].sum(axis=1, skipna=True)
     result_df[COL_VALOR_TOTAL] = result_df[COL_QTD_TOTAL] * result_df[COL_VALOR_UNITARIO]
     
@@ -94,6 +95,7 @@ def processar_df_orcamento(df: pd.DataFrame, original_had_qtd_total: bool, indic
             
     result_df[COL_ITEM] = np.arange(1, len(result_df) + 1)
 
+    # Lógica para gerar "Idem ao item..." alinhada com a versão desktop de referência
     for i, row in result_df.iterrows():
         especificacao = str(row[COL_ESPECIFICACAO])
         if especificacao.startswith("##TEMP_COTA##"):
