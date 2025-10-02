@@ -18,7 +18,7 @@ st.set_page_config(
 )
 
 # --- Funções Auxiliares ---
-def formatar_moeda_br_string(valor):
+def formatar_moeda_br_string(valor: float | int | None) -> str:
     """Formata um número para uma string no padrão de moeda brasileiro (R$ #.###,####)."""
     if pd.isna(valor) or not isinstance(valor, (int, float)):
         return "R$ 0,0000"
@@ -86,12 +86,11 @@ def validar_e_calcular_totais(df: pd.DataFrame) -> tuple[pd.DataFrame, list[str]
 st.title("Calculadora de Cotas para ME/EPP")
 st.markdown("Faça o upload da sua planilha de orçamento para aplicar as regras de cotas.")
 
-if 'df_original' not in st.session_state:
-    st.session_state.df_original = None
+# Inicialização do estado da sessão
+if 'df_para_editar' not in st.session_state:
+    st.session_state.df_para_editar = None
 if 'df_resultado' not in st.session_state:
     st.session_state.df_resultado = None
-if 'df_editado' not in st.session_state:
-    st.session_state.df_editado = None
 
 uploaded_file = st.file_uploader("Selecione a planilha Excel (.xlsx)", type="xlsx", key="file_uploader")
 
@@ -109,20 +108,19 @@ if uploaded_file:
 
         df_corrigido.insert(0, 'SELECIONAR COTA', False)
         
-        st.session_state.df_original = df_corrigido
-        st.session_state.df_resultado = None
+        st.session_state.df_para_editar = df_corrigido
+        st.session_state.df_resultado = None # Limpa resultado anterior ao carregar novo arquivo
 
     except Exception as e:
         st.error(f"Erro ao ler ou validar o arquivo: {e}")
-        st.session_state.df_original = None
+        st.session_state.df_para_editar = None
 
-if st.session_state.df_original is not None:
+if st.session_state.df_para_editar is not None:
     st.subheader("Planilha Original")
     st.markdown("Marque a caixa de seleção `SELECIONAR COTA` nas linhas que devem ser consideradas para a análise de cotas.")
     
-    # Prepara o DataFrame para exibição, desabilitando a edição das células formatadas
-    df_para_exibir = st.session_state.df_original.copy()
-    disabled_cols = [col for col in df_para_exibir.columns if col != 'SELECIONAR COTA']
+    # Prepara o DataFrame para exibição e edição
+    df_para_exibir = st.session_state.df_para_editar.copy()
     
     # Configuração para formatar visualmente os valores monetários
     column_config = {
@@ -130,10 +128,10 @@ if st.session_state.df_original is not None:
         for col in df_para_exibir.columns if 'VALOR' in str(col).upper()
     }
 
-    # Armazena o dataframe editado no estado da sessão
-    st.session_state.df_editado = st.data_editor(
-        st.session_state.df_original,
-        disabled=disabled_cols,
+    # O data_editor agora é a única fonte de verdade para os dados editados
+    df_editado = st.data_editor(
+        df_para_exibir,
+        disabled=[col for col in df_para_exibir.columns if col != 'SELECIONAR COTA'],
         use_container_width=True,
         hide_index=True,
         column_config=column_config,
@@ -141,16 +139,18 @@ if st.session_state.df_original is not None:
     )
     
     if st.button("Processar Cotas Marcadas"):
-        indices_marcados = set(st.session_state.df_editado[st.session_state.df_editado['SELECIONAR COTA'] == True].index)
+        indices_marcados = set(df_editado[df_editado['SELECIONAR COTA'] == True].index)
 
         if not indices_marcados:
             st.warning("Nenhuma linha foi selecionada para processamento de cota.")
         else:
             with st.spinner('Processando...'):
                 try:
-                    # CORREÇÃO APLICADA: Utiliza o 'df_original' para o processamento, 
-                    # assim como a app desktop faz, passando apenas os índices dos itens selecionados.
-                    df_para_processar = st.session_state.df_original.drop(columns=['SELECIONAR COTA'])
+                    # ***** A CORREÇÃO FUNDAMENTAL ESTÁ AQUI *****
+                    # Usamos o `df_editado` como a base para o processamento, garantindo consistência.
+                    df_para_processar = df_editado.drop(columns=['SELECIONAR COTA'])
+                    
+                    # Verifica se a coluna "QUANTIDADE TOTAL" existia originalmente
                     original_had_qtd_total = "QUANTIDADE TOTAL" in df_para_processar.columns
                     
                     resultado = processar_df_orcamento(
