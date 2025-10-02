@@ -19,16 +19,14 @@ st.set_page_config(
 
 # --- Funções Auxiliares ---
 def formatar_moeda_br(valor):
-    """Formata um número para o padrão de moeda brasileiro (R$ #.###,####), tratando valores nulos."""
+    """Formata um número para o padrão de moeda brasileiro (R$ #.###,####)."""
     if pd.isna(valor) or not isinstance(valor, (int, float)):
         return "R$ 0,0000"
+    # Formata com 4 casas decimais, usando '.' para milhar e ',' para decimal
     return f"R$ {valor:,.4f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
 def validar_e_calcular_totais(df: pd.DataFrame) -> tuple[pd.DataFrame, list[str]]:
-    """
-    Valida e recalcula os totais do DataFrame. Retorna o DataFrame corrigido e uma lista de mensagens
-    sobre as correções feitas para exibir ao usuário.
-    """
+    """Valida e recalcula os totais do DataFrame, retornando o DF corrigido e mensagens de correção."""
     correcoes_msgs = []
     
     if COL_VALOR_UNITARIO not in df.columns:
@@ -90,7 +88,6 @@ def validar_e_calcular_totais(df: pd.DataFrame) -> tuple[pd.DataFrame, list[str]
 st.title("Calculadora de Cotas para ME/EPP")
 st.markdown("Faça o upload da sua planilha de orçamento para aplicar as regras de cotas.")
 
-# Inicializa o estado da sessão
 if 'df_original' not in st.session_state:
     st.session_state.df_original = None
 if 'df_resultado' not in st.session_state:
@@ -123,21 +120,23 @@ if st.session_state.df_original is not None:
     st.subheader("Planilha Original")
     st.markdown("Marque a caixa de seleção `SELECIONAR COTA` nas linhas que devem ser consideradas para a análise de cotas.")
     
-    monetary_cols = {
-        col: st.column_config.NumberColumn(format="R$ %.4f")
-        for col in st.session_state.df_original.columns
-        if 'VALOR' in col.upper()
-    }
+    # Cria uma cópia para exibição com formatação de moeda
+    df_display = st.session_state.df_original.copy()
+    monetary_cols = [col for col in df_display.columns if 'VALOR' in str(col).upper()]
+    for col in monetary_cols:
+        df_display[col] = df_display[col].apply(formatar_moeda_br)
 
+    # Edita o DataFrame original, mas exibe o formatado
     df_editado = st.data_editor(
-        st.session_state.df_original,
+        df_display, # Exibe o DF com formatação de string
         key='editor_dados',
         use_container_width=True,
-        column_config=monetary_cols,
         hide_index=True
     )
     
     if st.button("Processar Cotas Marcadas"):
+        # Pega os índices das linhas onde a caixa foi marcada
+        # IMPORTANTE: A verificação é feita no DataFrame exibido (df_editado), que é uma representação da UI
         indices_marcados = set(df_editado[df_editado['SELECIONAR COTA'] == True].index)
 
         if not indices_marcados:
@@ -145,7 +144,8 @@ if st.session_state.df_original is not None:
         else:
             with st.spinner('Processando...'):
                 try:
-                    df_para_processar = df_editado.drop(columns=['SELECIONAR COTA'])
+                    # Usa o DataFrame original (numérico) para o processamento
+                    df_para_processar = st.session_state.df_original.drop(columns=['SELECIONAR COTA'])
                     original_had_qtd_total = "QUANTIDADE TOTAL" in df_para_processar.columns
                     
                     resultado = processar_df_orcamento(
@@ -162,13 +162,13 @@ if st.session_state.df_original is not None:
 if st.session_state.df_resultado is not None:
     st.subheader("Resultado Processado")
 
-    monetary_cols_resultado = {
-        col: st.column_config.NumberColumn(format="R$ %.4f")
-        for col in st.session_state.df_resultado.columns
-        if 'VALOR' in col.upper()
-    }
+    # Cria uma cópia formatada para exibição do resultado
+    df_resultado_display = st.session_state.df_resultado.copy()
+    monetary_cols_resultado = [col for col in df_resultado_display.columns if 'VALOR' in str(col).upper()]
+    for col in monetary_cols_resultado:
+        df_resultado_display[col] = df_resultado_display[col].apply(formatar_moeda_br)
     
-    st.dataframe(st.session_state.df_resultado, use_container_width=True, column_config=monetary_cols_resultado, hide_index=True)
+    st.dataframe(df_resultado_display, use_container_width=True, hide_index=True)
     
     excel_bytes = to_excel(st.session_state.df_resultado)
     
