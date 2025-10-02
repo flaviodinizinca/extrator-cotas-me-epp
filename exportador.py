@@ -1,4 +1,5 @@
-# SECOM Tools/ME-EPP/ui_components.py
+# ME-EPPgit/exportador.py - CÓDIGO COMPLETO
+# -*- coding: utf-8 -*-
 import pandas as pd
 import io
 import traceback
@@ -14,7 +15,7 @@ def to_excel(df: pd.DataFrame) -> bytes:
             workbook = writer.book
             worksheet = writer.sheets['PlanilhaOrc']
             
-            # Formato de moeda corrigido para garantir o separador de milhar.
+            # Formato de moeda para Excel, garantindo o separador de milhar.
             money_format = workbook.add_format({'num_format': 'R$ #,##0.0000_ ;[Red]-R$ #,##0.0000_ ;R$ 0,0000_ ;@_ '})
             
             header = [str(c).upper().strip() for c in df.columns]
@@ -36,7 +37,6 @@ def to_excel(df: pd.DataFrame) -> bytes:
                     ) + 2
                     worksheet.set_column(idx, idx, max_len)
 
-            # --- LÓGICA ATUALIZADA PARA ADICIONAR A LINHA DE TOTAIS ---
             num_rows = len(df.index)
             total_row_idx = num_rows + 1
 
@@ -55,20 +55,10 @@ def to_excel(df: pd.DataFrame) -> bytes:
                         total_label_format
                     )
 
-                last_total_col_name = total_value_cols[-1]
-
                 for col_name in total_value_cols:
                     col_idx = header.index(col_name)
                     total_value = pd.to_numeric(df[col_name], errors='coerce').sum()
-
-                    if col_name == last_total_col_name:
-                        worksheet.merge_range(
-                            total_row_idx, col_idx, total_row_idx, col_idx + 1,
-                            total_value,
-                            total_money_format
-                        )
-                    else:
-                        worksheet.write_number(total_row_idx, col_idx, total_value, total_money_format)
+                    worksheet.write_number(total_row_idx, col_idx, total_value, total_money_format)
                 
     except Exception as e:
         print(f"\n--- OCORREU UM ERRO DENTRO DA FUNÇÃO to_excel ---\n{traceback.format_exc()}")
