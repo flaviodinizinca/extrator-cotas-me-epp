@@ -116,19 +116,22 @@ if uploaded_file:
 
 if st.session_state.df_original is not None:
     st.subheader("Planilha Original")
-    st.markdown("Marque a caixa de seleção `SELECIONAR COTA` nas linhas que devem ser consideradas para a análise de cotas.")
+    st.markdown("Marque a caixa de seleção `SELECIONAAR COTA` nas linhas que devem ser consideradas para a análise de cotas.")
     
-    df_para_editar = st.session_state.df_original.copy()
-
-    # Configuração de colunas para formatação de moeda
+    # Prepara o DataFrame para exibição, desabilitando a edição das células formatadas
+    df_para_exibir = st.session_state.df_original.copy()
+    disabled_cols = [col for col in df_para_exibir.columns if col != 'SELECIONAR COTA']
+    
+    # Configuração para formatar visualmente os valores monetários
     column_config = {
         col: st.column_config.NumberColumn(format="R$ %.4f")
-        for col in df_para_editar.columns if 'VALOR' in str(col).upper()
+        for col in df_para_exibir.columns if 'VALOR' in str(col).upper()
     }
-    
-    # Armazena o dataframe editado no estado da sessão
+
+    # O data_editor agora edita diretamente uma cópia no estado da sessão
     st.session_state.df_editado = st.data_editor(
-        df_para_editar,
+        df_para_exibir,
+        disabled=disabled_cols,
         use_container_width=True,
         hide_index=True,
         column_config=column_config,
@@ -136,6 +139,7 @@ if st.session_state.df_original is not None:
     )
     
     if st.button("Processar Cotas Marcadas"):
+        # As marcações são obtidas do estado atual do widget
         indices_marcados = set(st.session_state.df_editado[st.session_state.df_editado['SELECIONAR COTA'] == True].index)
 
         if not indices_marcados:
@@ -143,6 +147,7 @@ if st.session_state.df_original is not None:
         else:
             with st.spinner('Processando...'):
                 try:
+                    # O processamento é feito no DataFrame original (com números)
                     df_para_processar = st.session_state.df_original.drop(columns=['SELECIONAR COTA'])
                     original_had_qtd_total = "QUANTIDADE TOTAL" in df_para_processar.columns
                     
