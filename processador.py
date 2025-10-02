@@ -70,4 +70,59 @@ def processar_df_orcamento(df: pd.DataFrame, original_had_qtd_total: bool, indic
                             cota_perc_encontrado = perc
                             break
                     
-                    if cota_perc_encontrado
+                    if cota_perc_encontrado > 0:
+                        cota_row = original_row.copy()
+                        cota_row[COL_ESPECIFICACAO] = f"##TEMP_COTA##{cota_perc_encontrado}"
+                        cota_row[COL_TRATAMENTO] = TRATAMENTO_COTA
+                        
+                        original_row[COL_TRATAMENTO] = TRATAMENTO_AMPLA
+                        
+                        for col_qtd in cols_quantidades:
+                            qtd_original_parcial = original_row.get(col_qtd, 0)
+                            qtd_cota_parcial = round(qtd_original_parcial * (cota_perc_encontrado / 100))
+                            cota_row[col_qtd] = qtd_cota_parcial
+                            original_row[col_qtd] -= qtd_cota_parcial
+                            
+                        processed_rows.append(original_row)
+                        processed_rows.append(cota_row)
+                    else:
+                        original_row[COL_TRATAMENTO] = TRATAMENTO_AMPLA
+                        processed_rows.append(original_row)
+        else:
+            original_row[COL_TRATAMENTO] = TRATAMENTO_AMPLA
+            processed_rows.append(original_row)
+            
+    if not processed_rows:
+        return pd.DataFrame()
+
+    result_df = pd.DataFrame(processed_rows).reset_index(drop=True)
+    
+    if cols_quantidades:
+        result_df[COL_QTD_TOTAL] = result_df[cols_quantidades].sum(axis=1, skipna=True)
+    
+    if COL_QTD_TOTAL in result_df.columns and COL_VALOR_UNITARIO in result_df.columns:
+        result_df[COL_VALOR_TOTAL] = (result_df[COL_QTD_TOTAL] * result_df[COL_VALOR_UNITARIO]).round(4)
+    
+    cols_valores = [c for c in df.columns if c.startswith(PREFIXO_VALOR) and c != COL_VALOR_TOTAL]
+    for col_val, col_qtd in zip(cols_valores, cols_quantidades):
+        if col_val in result_df.columns and col_qtd in result_df.columns and COL_VALOR_UNITARIO in result_df.columns:
+            result_df[col_val] = (result_df[col_qtd] * result_df[COL_VALOR_UNITARIO]).round(4)
+            
+    result_df[COL_ITEM] = np.arange(1, len(result_df) + 1)
+
+    last_item_mae_num = 0
+    for i, row in result_df.iterrows():
+        especificacao = str(row.get(COL_ESPECIFICACAO, ''))
+        if especificacao.startswith("##TEMP_COTA##"):
+            item_mae_num = result_df.at[i - 1, COL_ITEM] if i > 0 else last_item_mae_num
+            perc = especificacao.replace("##TEMP_COTA##", "")
+            new_desc = f"Idem ao item {item_mae_num}, cota reservada para me/epp de até {perc}%"
+            result_df.at[i, COL_ESPECIFICACAO] = new_desc
+        else:
+            last_item_mae_num = row[COL_ITEM]
+
+    if not original_had_qtd_total:
+        if COL_QTD_TOTAL in result_df.columns:
+            result_df = result_df.drop(columns=[COL_QTD_TOTAL])
+
+    return result_df
