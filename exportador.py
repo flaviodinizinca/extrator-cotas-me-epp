@@ -1,4 +1,4 @@
-# ME-EPPgit/exportador.py - CÓDIGO COMPLETO
+# ME-EPPgit/exportador.py - CÓDIGO COMPLETO (sem alterações)
 # -*- coding: utf-8 -*-
 import pandas as pd
 import io
