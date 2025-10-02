@@ -38,10 +38,10 @@ def processar_df_orcamento(df: pd.DataFrame, original_had_qtd_total: bool, indic
     for index, row in df.iterrows():
         original_row = row.to_dict()
         if index in indices_marcados:
-            valor_unitario = row.get(COL_VALOR_UNITARIO, 0)
-            qtd_total = row.get(COL_QTD_TOTAL, 0)
+            valor_unitario = row[COL_VALOR_UNITARIO]
+            qtd_total = row[COL_QTD_TOTAL]
             valor_total_item = valor_unitario * qtd_total if pd.notna(valor_unitario) and pd.notna(qtd_total) else 0
-
+            
             if valor_total_item <= TETO_ME_EPP:
                 original_row[COL_TRATAMENTO] = TRATAMENTO_EXCLUSIVO
                 processed_rows.append(original_row)
@@ -82,22 +82,22 @@ def processar_df_orcamento(df: pd.DataFrame, original_had_qtd_total: bool, indic
     if not processed_rows:
         return pd.DataFrame()
 
-    result_df = pd.DataFrame(processed_rows).reset_index(drop=True)
+    result_df = pd.DataFrame(processed_rows)
     
-    # Recalcula as colunas de quantidade e valor para garantir consistência, com arredondamento
+    # Recalcula as colunas de quantidade e valor para garantir consistência
     result_df[COL_QTD_TOTAL] = result_df[cols_quantidades].sum(axis=1, skipna=True)
-    result_df[COL_VALOR_TOTAL] = (result_df[COL_QTD_TOTAL] * result_df[COL_VALOR_UNITARIO]).round(4)
+    result_df[COL_VALOR_TOTAL] = result_df[COL_QTD_TOTAL] * result_df[COL_VALOR_UNITARIO]
     
     cols_valores = [c for c in df.columns if c.startswith(PREFIXO_VALOR) and c != COL_VALOR_TOTAL]
     for col_val, col_qtd in zip(cols_valores, cols_quantidades):
         if col_val in result_df.columns and col_qtd in result_df.columns:
-            result_df[col_val] = (result_df[col_qtd] * result_df[COL_VALOR_UNITARIO]).round(4)
+            result_df[col_val] = result_df[col_qtd] * result_df[COL_VALOR_UNITARIO]
             
     result_df[COL_ITEM] = np.arange(1, len(result_df) + 1)
 
     # Lógica para gerar "Idem ao item..." alinhada com a versão desktop de referência
     for i, row in result_df.iterrows():
-        especificacao = str(row.get(COL_ESPECIFICACAO, ''))
+        especificacao = str(row[COL_ESPECIFICACAO])
         if especificacao.startswith("##TEMP_COTA##"):
             item_mae_num = result_df.at[i - 1, COL_ITEM]
             perc = especificacao.replace("##TEMP_COTA##", "")
