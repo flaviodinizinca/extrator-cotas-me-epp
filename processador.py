@@ -1,10 +1,5 @@
 # ME-EPPgit/processador.py - CÓDIGO COMPLETO E CORRIGIDO
 # -*- coding: utf-8 -*-
-"""
-Módulo contendo a lógica de negócio para processamento de cotas ME/EPP.
-Versão Final: Torna a coluna QUANTIDADE TOTAL opcional no arquivo de entrada
-e a remove do resultado se ela não existia no original.
-"""
 import pandas as pd
 import numpy as np
 from typing import List, Dict, Any, Set
@@ -26,15 +21,7 @@ PERCENTUAL_MAX_COTA: int = 25
 
 def processar_df_orcamento(df: pd.DataFrame, original_had_qtd_total: bool, indices_marcados: Set[int]) -> pd.DataFrame:
     """
-    Processa um DataFrame de orçamento para aplicar regras de cotas.
-
-    Args:
-        df: DataFrame contendo os dados do orçamento.
-        original_had_qtd_total: Flag booleana que indica se a coluna
-                                'QUANTIDADE TOTAL' existia no arquivo original.
-        indices_marcados: Um conjunto com os índices das linhas marcadas para cota.
-    Returns:
-        Um novo DataFrame com os itens processados.
+    Processa um DataFrame de orçamento para aplicar regras de cotas, espelhando a lógica da app desktop.
     """
     cols_quantidades = [c for c in df.columns if c.startswith(PREFIXO_QTD) and c != COL_QTD_TOTAL]
 
@@ -97,6 +84,7 @@ def processar_df_orcamento(df: pd.DataFrame, original_had_qtd_total: bool, indic
 
     result_df = pd.DataFrame(processed_rows).reset_index(drop=True)
     
+    # Recalcula as colunas de quantidade e valor para garantir consistência, com arredondamento
     if cols_quantidades:
         result_df[COL_QTD_TOTAL] = result_df[cols_quantidades].sum(axis=1, skipna=True)
     
@@ -110,16 +98,14 @@ def processar_df_orcamento(df: pd.DataFrame, original_had_qtd_total: bool, indic
             
     result_df[COL_ITEM] = np.arange(1, len(result_df) + 1)
 
-    last_item_mae_num = 0
+    # Lógica para gerar "Idem ao item..." alinhada com a versão desktop de referência
     for i, row in result_df.iterrows():
         especificacao = str(row.get(COL_ESPECIFICACAO, ''))
         if especificacao.startswith("##TEMP_COTA##"):
-            item_mae_num = result_df.at[i - 1, COL_ITEM] if i > 0 else last_item_mae_num
+            item_mae_num = result_df.at[i - 1, COL_ITEM]
             perc = especificacao.replace("##TEMP_COTA##", "")
             new_desc = f"Idem ao item {item_mae_num}, cota reservada para me/epp de até {perc}%"
             result_df.at[i, COL_ESPECIFICACAO] = new_desc
-        else:
-            last_item_mae_num = row[COL_ITEM]
 
     if not original_had_qtd_total:
         if COL_QTD_TOTAL in result_df.columns:
